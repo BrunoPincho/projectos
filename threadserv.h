@@ -16,7 +16,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-
+#include <signal.h>
 
 int fs;//socket do front_server
 int ds;//socket do data_server
@@ -33,12 +33,20 @@ void *ler_teclado(void* fd);
 void *Master_thread();
 //pipeline
 int udp_server();
+
+
+////servidores///////////////////////////
+void Frontserver();
+void DataServer();
 	
+////////////////////////////////////////	
 int udp_cliente();
 struct sockaddr_in front_addr;
 int fd;
 /////////
 int quit;
+
+void dead_child(int sig_num);//detecta se o front server terminou subitamente
 
 struct clausa{
 	int valor;
