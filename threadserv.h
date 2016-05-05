@@ -18,7 +18,9 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <sys/prctl.h>
-
+#include <fcntl.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 int fs;//socket do front_server
 int ds;//socket do data_server
@@ -68,9 +70,8 @@ struct Pacote{
 	char modo;
 };
 
-////////////////////////////
-
-
-
+///shared memory
+int cria_shmem(int porta);
+void acede_shmem(char* porta);
 
 #endif

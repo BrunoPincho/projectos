@@ -11,7 +11,8 @@ int main(){
 	pthread_mutex_init(&mux,NULL);
 	/////
 	
-
+	
+	
 	
 	if((front_server = fork())==-1){
 		perror("fork");
@@ -19,10 +20,11 @@ int main(){
 	}
 	
 	if(front_server == 0){
-	
-	Frontserver();
-	
+		
+		Frontserver();
 	}else{
+			
+			
 	DataServer();
 	}
 	exit(1);

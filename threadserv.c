@@ -1,4 +1,11 @@
 #include "threadserv.h"
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+char *shm;
 pthread_t teclas;
 
 
@@ -19,7 +26,6 @@ void Reboot(){
 			if(fs!=0){
 				close(fs);
 				fs=0;
-				close(socket_udp);
 				DataServer();			
 			}		
 	}else{
@@ -51,8 +57,11 @@ void Frontserver(){
 		puts("entrou front_server");
 		
 		int fd;
-		fd = udp_cliente();
+		//fd = udp_cliente();
 		char resposta[5]="\0";
+		
+		//fifo_IN = open(FIFO_NAME, O_WRONLY);
+		//fifo_OUT = open(FIFO_NAME,O_RDONLY);
 		
 		//close(fd[0]);
 		
@@ -66,33 +75,34 @@ void Frontserver(){
 		/////sinal de termino de um processo pai
 		signal(SIGHUP,dead_parent);
 		/////
-			
+		
 		pthread_create(&teclas,NULL,ler_teclado,&fd);
 		sum_trd++;
-		int n;
+		//int n;
 		cria_server(1);
 		int addrlen1;
-		
+	
 			while(1){
-			
+					
 					addrlen1=sizeof(servsoc);
-			
+					
 					if((socket=accept(fs,(struct sockaddr*)&servsoc,(socklen_t *)&addrlen1))==-1){
 								puts("sai no ACCEPT");				
 								exit(1);
 						}
 						
 					puts("ligou-se\n");	
-					
-					if((sendto(fd,"P",2,0,(struct sockaddr*)&front_addr,sizeof(front_addr))<0)){
+					acede_shmem(resposta);
+					/*if((sendto(fd,"P",2,0,(struct sockaddr*)&front_addr,sizeof(front_addr))<0)){
 							printf("erro send\t");
-						}
+						}*/
 					
-					n=recvfrom(fd,resposta,5,0,(struct sockaddr*)&front_addr,((socklen_t *)&addrlen1));
+					//n=recvfrom(fd,resposta,5,0,(struct sockaddr*)&front_addr,((socklen_t *)&addrlen1));
 					
-					write(socket,resposta,5);
+					/*n=read(pipd[0],resposta,5);
+					if(n==-1){exit(0);}*/
 					
-					if(n==-1){exit(0);}
+					write(socket,resposta,5);		
 					
 			}
 }
@@ -102,16 +112,17 @@ void DataServer(){
 		pthread_t Master;
 		int porta=0;
 		puts("entrou data server");
-		struct sockaddr_in cli_addr;
-		int addrlen;
-		int n;
+		//struct sockaddr_in cli_addr;
+		//int addrlen;
+		
+		//int n;
 		porta=cria_server(0);
-		socket_udp = udp_server();
-		char leitura[10];
+		//socket_udp = udp_server();
+		//char leitura[10];
 		char responder[5];
 		bzero(responder,5);
 		pthread_create(&Master,NULL,Master_thread,NULL);		
-		addrlen=sizeof(cli_addr);
+		//addrlen=sizeof(cli_addr);
 		
 		prctl(PR_SET_PDEATHSIG, SIGHUP);
 	
@@ -122,24 +133,29 @@ void DataServer(){
 		/////sinal de termino de um processo pai
 		signal(SIGHUP,dead_parent);
 		/////
-				
-		while(1){
+		//fifo_IN = open(FIFO_NAME, O_WRONLY);
+		//fifo_OUT = open(FIFO_NAME,O_RDONLY);		
+		if(cria_shmem(porta)<0){
+				printf("erro na memoria\n");
+				exit(0);
+			}
+		
+		while(*shm != '*'){
 					
-			n=recvfrom(socket_udp,leitura,10,0,(struct sockaddr*)&cli_addr,((socklen_t *)&addrlen));
-			if(n==-1)exit(1);
+			//n=recvfrom(socket_udp,leitura,10,0,(struct sockaddr*)&cli_addr,((socklen_t *)&addrlen));
 			
-			printf("Front diz: %s\t",leitura);
-			if(strncmp(leitura,"\0",1)==0){
+			sleep(1);
+			/*if(strncmp(leitura,"\0",1)==0){
 				printf("ordem de saida\n");
 				exit(0);
 			}
 			if(strcmp(leitura,"P")==0){
 				sprintf(responder,"%d",porta);
-				if((sendto(socket_udp,responder,strlen(responder)+1,0,(struct sockaddr*)&cli_addr,sizeof(cli_addr))<0))
+				if(write(pipd[1],responder,strlen(responder)+1)<0)
 					printf("erro send\t");
-				
+				//sendto(socket_udp,responder,strlen(responder)+1,0,(struct sockaddr*)&cli_addr,sizeof(cli_addr))
 			}
-			bzero(leitura,10);
+			bzero(leitura,10);*/
 									
 		}
 				
@@ -175,7 +191,7 @@ int cria_server(int servidor){
 	}
 	
 	if(servidor==0){
-		int porta=9006;
+		int porta=9000;
 		
 			if((ds = socket(AF_INET,SOCK_STREAM,0))<0){
 		puts("erro no socket");
@@ -191,9 +207,10 @@ int cria_server(int servidor){
 		
 		while(bind (ds,(struct sockaddr *) &servsoc, sizeof(servsoc))==-1){
 				printf("erro bind do Data_s\t mudar a porta\n");	
-				porta--;
+				porta++;
 				servsoc.sin_port = htons(porta);
 			}
+			
 
 		/*if(bind (ds,(struct sockaddr *) &servsoc, sizeof(servsoc))<0){
 			printf("erro bind DS \n");	
@@ -343,3 +360,81 @@ int udp_cliente(){
 	
 	return sockfd;
 }
+
+////MEMORIA PARTILHADA
+
+int cria_shmem(int porta){
+	
+    int shmid;
+    key_t key;
+    char  *s;
+	int i;
+	
+	char port[4];
+	sprintf(port,"%d",porta);
+	
+	key = 69;
+
+    /*
+     * Create the segment.
+     */
+    if ((shmid = shmget(key, 10, IPC_CREAT | 0666)) < 0) {
+        perror("shmget");
+        return -1;
+    }
+
+    /*
+     * Now we attach the segment to our data space.
+     */
+    if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) {
+        perror("shmat");
+        return -1;
+    }
+	
+	s=shm;
+	
+	
+    for (i=0; i < 4; i++)
+        *s++ = port[i];
+	
+	*s = '\0';
+	
+	
+	
+	return 1;
+	
+}
+
+void acede_shmem(char* porta){
+	key_t key=69;
+	int shmid;
+    char *shm, *s;
+	
+	
+    /*
+     * Locate the segment.
+     */
+    if ((shmid = shmget(key, 10, 0666)) < 0) {
+        perror("shmget");
+        exit(1);
+    }
+
+    /*
+     * Now we attach the segment to our data space.
+     */
+    if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    /*
+     * Now read what the server put in the memory.
+     */
+     int i=0;
+    for (s = shm; *s != '\0'; s++){
+		porta[i]=*s;
+        putchar(*s);
+        i++; 
+	}
+}
+
