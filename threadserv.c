@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int shmid;
 char *shm;
 pthread_t teclas;
 
@@ -38,8 +39,9 @@ void dead_child(int sig_num){
 	int status;
 	
 	wait(&status);
-	printf("child exited, rebooting \n");
+	
 	if(quit!=1){
+		printf("child exited, rebooting \n");
 		Reboot();
 	}
 }
@@ -144,7 +146,7 @@ void DataServer(){
 					
 			//n=recvfrom(socket_udp,leitura,10,0,(struct sockaddr*)&cli_addr,((socklen_t *)&addrlen));
 			
-			sleep(1);
+			
 			/*if(strncmp(leitura,"\0",1)==0){
 				printf("ordem de saida\n");
 				exit(0);
@@ -158,7 +160,9 @@ void DataServer(){
 			bzero(leitura,10);*/
 									
 		}
-				
+		quit=1;
+		puts("Data server a sair\n");	
+		shmctl(shmid,IPC_RMID,NULL);	
 		close(ds);	
 }
 
@@ -301,19 +305,19 @@ void *Master_thread(){
 
 
 void *ler_teclado(void *fd){
-char mensagem[128];
-	int dataserver;
-	dataserver=*((int *) fd);
+	char mensagem[128];
+	//int dataserver;
+	//dataserver=*((int *) fd);
 
 	puts("a ler do teclado\n");
 	while(fgets(mensagem,128,stdin)!=NULL){
 
 		printf("\nfoi escrito: %s \n",mensagem);
 		if(strncmp(mensagem,"quit",4)==0){
-			quit=1;
-			if((sendto(dataserver,"\0",2,0,(struct sockaddr*)&front_addr,sizeof(front_addr))<0))
-					
-					printf("erro send\t");
+					quit=1;
+			//if((sendto(dataserver,"\0",2,0,(struct sockaddr*)&front_addr,sizeof(front_addr))<0))
+					terminu_shmem();		
+					printf("Front a sair\n");
 			
 			close(fs);
 			exit(0);
@@ -365,7 +369,7 @@ int udp_cliente(){
 
 int cria_shmem(int porta){
 	
-    int shmid;
+    
     key_t key;
     char  *s;
 	int i;
@@ -438,3 +442,32 @@ void acede_shmem(char* porta){
 	}
 }
 
+
+
+void terminu_shmem(){
+	key_t key=69;
+	int shmid;
+    char *shm;
+	
+	
+    /*
+     * Locate the segment.
+     */
+    if ((shmid = shmget(key, 10, 0666)) < 0) {
+        perror("shmget");
+        exit(1);
+    }
+
+    /*
+     * Now we attach the segment to our data space.
+     */
+    if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) {
+        perror("shmat");
+        exit(1);
+    }
+
+    /*
+     * Now read what the server put in the memory.
+     */
+     *shm='*';
+}

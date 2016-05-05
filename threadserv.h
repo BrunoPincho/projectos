@@ -73,5 +73,6 @@ struct Pacote{
 ///shared memory
 int cria_shmem(int porta);
 void acede_shmem(char* porta);
+void terminu_shmem();
 
 #endif
